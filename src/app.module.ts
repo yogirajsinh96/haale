@@ -1,14 +1,29 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from './config/config.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { ProjectsModule } from './projects/projects.module';
+import { SettingsModule } from './settings/settings.module';
+import { User } from './users/user.entity';
+import { Project } from './projects/project.entity';
+import { DeployLog } from './projects/deploy-log.entity';
+import { HaaleSettings } from './settings/haale-settings.entity';
 
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
 @Module({
-  imports: [ServeStaticModule.forRoot({
-  rootPath: join(__dirname, '..', 'public'),
-})],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule,
+    TypeOrmModule.forRoot({
+      type: 'sqlite',
+      database: process.env.DB_PATH ?? './haale.db',
+      entities: [User, Project, DeployLog, HaaleSettings],
+      synchronize: true,
+      logging: process.env.NODE_ENV === 'development',
+    }),
+    UsersModule,
+    AuthModule,
+    ProjectsModule,
+    SettingsModule,
+  ],
 })
 export class AppModule {}
