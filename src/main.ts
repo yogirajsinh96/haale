@@ -9,25 +9,15 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.enableCors({
-    origin: true, // allow all origins
-    credentials: true,
-  });
-
   app.setGlobalPrefix('api');
 
-    // Serve built frontend from /public
+  // Serve built frontend static assets (JS, CSS, images, etc.) from /public
   const publicPath = join(__dirname, '../', 'public');
   app.useStaticAssets(publicPath);
 
-
   // ─── CORS ────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: [
-      'http://localhost:5173',  // Vite dev server
-      'http://localhost:4173',  // Vite preview
-      'http://localhost:3001',
-    ],
+    origin: true, // allow all origins
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -39,19 +29,25 @@ async function bootstrap() {
   // ─── Global validation ───────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,           // strip unknown properties
+      whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true,           // auto-transform payloads to DTO classes
+      transform: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
     }),
   );
 
-
-
-  // SPA fallback — any route that doesn't start with /api gets index.html
-  // This lets React Router handle /dashboard, /projects, /settings etc.
+  // ─── SPA Fallback ────────────────────────────────────────────────────────
+  // IMPORTANT: Must be registered on the raw Express instance BEFORE app.listen().
+  //
+  // The problem: NestJS's AllExceptionsFilter catches the NotFoundException
+  // thrown for unknown routes and returns a JSON 404 — before any NestJS-level
+  // wildcard route can respond. Registering this directly on the underlying
+  // Express instance bypasses NestJS routing entirely for non-API paths.
+  //
+  // Result: GET /login, /dashboard, /settings etc. → serve index.html
+  //         GET /api/... → handled by NestJS controllers as normal
   const server = app.getHttpAdapter().getInstance();
   server.get(/^(?!\/api).*$/, (_req: any, res: any) => {
     res.sendFile(join(publicPath, 'index.html'));
